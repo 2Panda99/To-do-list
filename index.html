@@ -1,97 +1,303 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title> My To-Do List</title>
-  <link rel="stylesheet" href="style.css" />
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Study Hub</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="script.js"></script> <!-- Linking the JavaScript file -->
+    <link rel="stylesheet" href="style.css"> <!-- This line links your CSS file -->
+
+
 </head>
-<!-- confetti message link -->
- <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
 
- <!-- reorder task funtionality -->
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-
-  <!-- download tasks -->
-   <!-- Add this in <head> -->
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> -->
 <body>
-  <div class="container">
-    <!-- Header -->
-    <header class="app-header">
-      <h1><i class="fas fa-tasks"></i> My To-Do List</h1>
-      <p>Stay organized, stay productive</p>
-    </header>
+  <header>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container">
+            <div class="nav-content">
+                <div class="logo">Study Hub</div>
+                <div class="nav-buttons">
+                    <ul class="nav-links">
+                        <li><a href="#" onclick="showPage('dashboard')" class="active">Dashboard</a></li>
+                        <li><a href="#" onclick="showPage('planner')">Planner</a></li>
+                        <li><a href="Subjects.html">Subjects</a></li>
+                        <li><a href="reports.html">Reports</a></li>
+                        <li><a href="Settings.html">Settings</a></li>
+                    </ul>
+                </div>
+                </div>
+        </div>
+    </nav>
+</header>
 
-    <!-- Input Area -->
-    <div class="input-area">
-      <input type="text" id="taskInput" placeholder="What needs to be done?" />
-      <input type="datetime-local" id="dueDateInput" />
-      <input type="text" id="categoryInput" placeholder="Category (e.g., Work)" />
-      <select id="priorityInput" >
-        <option placeholder ="Priority" selected >Priority(select)</option>
-        <option value="low">Low</option>
-        <option value="medium" >Medium</option>
-        <option value="high">High</option>
-      </select>
-      <button id="addButton">
-        <i class="fas fa-plus"></i> Add
-      </button>
-    </div>
+        <main class="main">
+            <div class="container">
+                <!-- Dashboard Page -->
+                <div id="dashboard" class="page active">
+                    <!-- Stats Overview -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalTasks">0</div>
+                            <div class="stat-label">Total Tasks</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="completedTasks">0</div>
+                            <div class="stat-label">Completed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="focusTime">0h</div>
+                            <div class="stat-label">Focus Time Today</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="streakDays">0</div>
+                            <div class="stat-label">Day Streak</div>
+                        </div>
+                    </div>
 
-    <!-- Warning Message -->
-    <div id="warningMessage" class="warning hidden">
-      <i class="fas fa-exclamation-triangle"></i>
-      Please enter a task!
-    </div>
+                    <div class="grid grid-2">
+                        <!-- Task Management -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">📝 Tasks & Assignments</h2>
+                                <button class="btn btn-primary btn-sm" onclick="showTemplates()">Templates</button>
+                            </div>
 
-    <!-- Search & Filters -->
-    <div class="controls">
-      <input type="text" id="searchInput" placeholder="🔍 Search tasks..." />
-      <div class="filters">
-        <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="active">Active</button>
-        <button class="filter-btn" data-filter="completed">Completed</button>
-        <button class="filter-btn" data-filter="overdue">Overdue</button>
-      </div>
-    </div>
+                            <form class="task-form" onsubmit="addTask(event)">
+                                <input type="text" class="task-input" placeholder="Add a new task..." required
+                                    id="taskInput">
+                                <select class="task-select" id="taskSubject">
+                                    <option value="math">Math</option>
+                                    <option value="science">Science</option>
+                                    <option value="english">English</option>
+                                    <option value="history">History</option>
+                                </select>
+                                <select class="task-select" id="taskPriority">
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                                <input type="date" class="task-select" id="taskDue">
+                                <button type="submit" class="btn btn-primary">Add</button>
+                            </form>
 
-    <!-- Task List -->
-    <ul id="taskList"></ul>
+                            <ul class="task-list" id="taskList">
+                                <!-- Tasks will be populated here -->
+                            </ul>
+                        </div>
 
-    <!-- Progress Section -->
-    <div class="progress-section">
-      <div class="progress-bar">
-        <div id="progressFill"></div>
-      </div>
-      <div class="progress-text">
-        <span id="progressPercentage">0%</span>
-      </div>
-    </div>
+                        <!-- Focus Timer -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">⏰ Focus Timer</h2>
+                            </div>
 
-    <!-- Motivation Message -->
-    <div class="motivation" id="motivationMessage">
-      Keep going! You're doing great 💪
-    </div>
-<!-- <button id="exportPdfBtn" title="Export as PDF">
-  <i class="fas fa-file-pdf"></i> Export PDF
-</button> -->
+                            <div class="timer-container">
+                                <div class="timer-display" id="timerDisplay">25:00</div>
+                                <div class="timer-controls">
+                                    <button class="btn btn-success" onclick="startTimer()" id="startBtn">Start</button>
+                                    <button class="btn btn-danger" onclick="pauseTimer()" id="pauseBtn">Pause</button>
+                                    <button class="btn btn-primary" onclick="resetTimer()">Reset</button>
+                                </div>
+                                <div>
+                                    <label>
+                                        <input type="checkbox" id="linkToTask"> Link to current task
+                                    </label>
+                                </div>
+                            </div>
 
-  </div>
+                            <div class="session-log">
+                                <h3>Recent Sessions</h3>
+                                <div id="sessionList">
+                                    <!-- Sessions will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-  <!-- Delete Confirmation Modal -->
-  <div id="confirmModal" class="modal">
-    <div class="modal-content">
-      <h3>Confirm Delete</h3>
-      <p id="modalMessage">Are you sure you want to delete this task?</p>
-      <div class="modal-buttons">
-        <button id="cancelBtn">Cancel</button>
-        <button id="confirmBtn" class="danger">Delete</button>
-      </div>
-    </div>
-  </div>
+                <!-- Planner Page -->
+                <div id="planner" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">📅 Weekly Planner</h2>
+                            <div>
+                                <button class="btn btn-primary btn-sm" onclick="changeMonth(-1)">← Prev</button>
+                                <span id="currentMonth">December 2024</span>
+                                <button class="btn btn-primary btn-sm" onclick="changeMonth(1)">Next →</button>
+                            </div>
+                        </div>
 
-  <script src="script.js"></script>
+                        <div class="calendar" id="calendar">
+                            <!-- Calendar will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subjects Page -->
+                <div id="subjects" class="page">
+                    <div class="grid grid-2">
+                        <div class="card">
+                            <h2 class="card-title">📊 Subject Progress</h2>
+                            <div id="subjectStats">
+                                <!-- Subject stats will be populated here -->
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h2 class="card-title">🎯 Habit Tracker</h2>
+                            <div id="habitTracker">
+                                <div class="habit-item">
+                                    <span>Daily Study Session</span>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70%"></div>
+                                    </div>
+                                    <span>7 day streak</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports Page -->
+                <div id="reports" class="page">
+                    <div class="grid grid-2">
+                        <div class="card">
+                            <h2 class="card-title">📈 Productivity Chart</h2>
+                            <canvas id="productivityChart" width="400" height="200"></canvas>
+                        </div>
+
+                        <div class="card">
+                            <h2 class="card-title">📊 Subject Distribution</h2>
+                            <canvas id="subjectChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">📄 Export Reports</h2>
+                            <button class="btn btn-primary" onclick="exportReport()">Export Weekly Report</button>
+                        </div>
+                        <p>Generate a comprehensive report of your study activities, completed tasks, and focus
+                            sessions.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Settings Page -->
+                <div id="settings" class="page">
+                    <div class="card">
+                        <h2 class="card-title">⚙️ Settings</h2>
+
+                        <div style="margin-bottom: 2rem;">
+                            <h3>Theme</h3>
+                            <label>
+                                <input type="radio" name="theme" value="light" onchange="setTheme('light')"> Light Mode
+                            </label>
+                            <label style="margin-left: 1rem;">
+                                <input type="radio" name="theme" value="dark" onchange="setTheme('dark')"> Dark Mode
+                            </label>
+                        </div>
+
+                        <div style="margin-bottom: 2rem;">
+                            <h3>Focus Timer</h3>
+                            <label>
+                                Focus Duration:
+                                <select id="focusDuration" onchange="updateFocusDuration()">
+                                    <option value="25">25 minutes</option>
+                                    <option value="30">30 minutes</option>
+                                    <option value="45">45 minutes</option>
+                                    <option value="60">60 minutes</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div>
+                            <h3>Data Management</h3>
+                            <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
+                            <p style="font-size: 0.875rem; color: var(--text-light); margin-top: 0.5rem;">
+                                This will permanently delete all tasks, sessions, and settings.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+
+     
+    <section id="templates ">
+        <!-- Template Modal -->
+        <div class="modal" id="templateModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📋 Task Templates</h2>
+                    <button class="modal-close" onclick="closeModal('templateModal')">&times;</button>
+                </div>
+                <div class="grid">
+                    <div class="card" onclick="loadTemplate('exam')">
+                        <h3>📚 Exam Preparation</h3>
+                        <p>Complete study plan for upcoming exams</p>
+                    </div>
+                    <div class="card" onclick="loadTemplate('project')">
+                        <h3>🎯 Project Planning</h3>
+                        <p>Break down large projects into manageable tasks</p>
+                    </div>
+                    <div class="card" onclick="loadTemplate('daily')">
+                        <h3>📅 Daily Study Routine</h3>
+                        <p>Essential daily study habits and tasks</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <!-- Day Detail Modal -->
+        <div class="modal" id="dayModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="dayModalTitle">Tasks for Today</h2>
+                    <button class="modal-close" onclick="closeModal('dayModal')">&times;</button>
+                </div>
+                <div id="dayModalContent">
+                    <!-- Day tasks will be populated here -->
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+
+
+
+<footer>
+
+</footer>
+
+
+
+    <script>
+        (function () {
+            function c() { var b = a.contentDocument || a.contentWindow.document; if (b) { var d = b.createElement('script'); d.innerHTML = "window.__CF$cv$params={r:'981acfde806173dc',t:'MTc1ODMwMzAzNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);"; b.getElementsByTagName('head')[0].appendChild(d) } }
+            if (document.body) {
+                var a = document.createElement('iframe');
+                a.height = 1;
+                a.width = 1;
+                a.style.position = 'absolute';
+                a.style.top = 0;
+                a.style.left = 0;
+                a.style.border = 'none';
+                a.style.visibility = 'hidden';
+                document.body.appendChild(a); if ('loading' !== document.readyState) c();
+                else if (window.addEventListener) document.addEventListener('DOMContentLoaded', c); else { var e = document.onreadystatechange || function () { }; document.onreadystatechange = function (b) { e(b); 'loading' !== document.readyState && (document.onreadystatechange = e, c()) } }
+            }
+        })();</script>
 </body>
+
 </html>

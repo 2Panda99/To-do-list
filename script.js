@@ -1,360 +1,777 @@
-// DOM Elements
-const taskInput = document.getElementById("taskInput");
-const dueDateInput = document.getElementById("dueDateInput");
-const categoryInput = document.getElementById("categoryInput");
-const priorityInput = document.getElementById("priorityInput");
-const addButton = document.getElementById("addButton");
-const taskList = document.getElementById("taskList");
-const warningMessage = document.getElementById("warningMessage");
-const searchInput = document.getElementById("searchInput");
-const progressFill = document.getElementById("progressFill");
-const progressPercentage = document.getElementById("progressPercentage");
-const motivationMessage = document.getElementById("motivationMessage");
-const filters = document.querySelectorAll(".filter-btn");
-const confirmModal = document.getElementById("confirmModal");
-const modalMessage = document.getElementById("modalMessage");
-const cancelBtn = document.getElementById("cancelBtn");
-const confirmBtn = document.getElementById("confirmBtn");
+// Global state
+let tasks = JSON.parse(localStorage.getItem('studyhub_tasks') || '[]')
+let sessions = JSON.parse(localStorage.getItem('studyhub_sessions') || '[]')
+let settings = JSON.parse(
+  localStorage.getItem('studyhub_settings') ||
+    '{"theme": "light", "focusDuration": 25}'
+)
 
-// State
-let tasks = [];
-let currentFilter = "all";
-let taskToDelete = null;
+let timerInterval = null
+let timerSeconds = settings.focusDuration * 60
+let isTimerRunning = false
+let currentDate = new Date()
 
-// Load tasks
-function loadTasks() {
-  const saved = localStorage.getItem("tasks");
-  if (saved) tasks = JSON.parse(saved);
-  renderTasks();
-  updateProgress();
-}
 
-// Save tasks
-function saveTasks() {
-  localStorage.setItem("tasks", JSON.stringify(tasks));
-}
 
-// Add Task
-function addTask() {
-  const text = taskInput.value.trim();
-  const dueDate = dueDateInput.value;
-  const category = categoryInput.value.trim() || "General";
-  const priority = priorityInput.value;
+// Initialize app
+document.addEventListener('DOMContentLoaded', function () {
+  loadTheme()
+  updateStats()
+  renderTasks()
+  renderSessions()
+  renderCalendar()
+  renderCharts()
+  updateTimerDisplay()
+})
 
-  if (!text) {
-    warningMessage.classList.remove("hidden");
-    setTimeout(() => warningMessage.classList.add("hidden"), 3000);
-    return;
+
+
+// Navigation
+function showPage (pageId) {
+  document
+    .querySelectorAll('.page')
+    .forEach(page => page.classList.remove('active'))
+  document
+    .querySelectorAll('.nav-links a')
+    .forEach(link => link.classList.remove('active'))
+
+  document.getElementById(pageId).classList.add('active')
+  event.target.classList.add('active')
+
+  if (pageId === 'reports') {
+    setTimeout(renderCharts, 100) // Delay for proper canvas rendering
   }
+}
 
-  const newTask = {
+
+
+// Theme management
+function toggleTheme () {
+  const currentTheme = document.documentElement.getAttribute('data-theme')
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark'
+  setTheme(newTheme)
+}
+
+function setTheme (theme) {
+  document.documentElement.setAttribute('data-theme', theme)
+  settings.theme = theme
+  saveSettings()
+
+  // Update radio buttons
+  document.querySelector(`input[name="theme"][value="${theme}"]`).checked = true
+
+  // Update theme toggle button
+  document.querySelector('.theme-toggle').textContent =
+    theme === 'dark' ? '☀️' : '🌙'
+}
+
+function loadTheme () {
+  setTheme(settings.theme)
+}
+
+
+
+// Task management
+function addTask (event) {
+  event.preventDefault()
+
+  const taskInput = document.getElementById('taskInput')
+  const taskSubject = document.getElementById('taskSubject')
+  const taskPriority = document.getElementById('taskPriority')
+  const taskDue = document.getElementById('taskDue')
+
+  const task = {
     id: Date.now(),
-    text,
-    dueDate: dueDate || null,
-    category,
-    priority,
+    text: taskInput.value,
+    subject: taskSubject.value,
+    priority: taskPriority.value,
+    due: taskDue.value,
     completed: false,
     createdAt: new Date().toISOString()
-  };
-
-  tasks.push(newTask);
-  taskInput.value = "";
-  dueDateInput.value = "";
-  categoryInput.value = "";
-  priorityInput.value = "medium";
-  saveTasks();
-  renderTasks();
-  updateProgress();
-}
-
-// Render Tasks
-function renderTasks() {
-  taskList.innerHTML = "";
-  const now = new Date();
-  const searchQuery = searchInput.value.toLowerCase().trim();
-
-  let filteredTasks = tasks.filter(task => {
-    // Filter by current tab
-    if (currentFilter === "active") return !task.completed;
-    if (currentFilter === "completed") return task.completed;
-    if (currentFilter === "overdue") {
-      if (task.completed) return false;
-      if (!task.dueDate) return false;
-      return new Date(task.dueDate) < now;
-    }
-
-    return true;
-  });
-
-  // Search filter
-  if (searchQuery) {
-    filteredTasks = filteredTasks.filter(t =>
-      t.text.toLowerCase().includes(searchQuery) ||
-      t.category.toLowerCase().includes(searchQuery)
-    );
   }
 
-  // Sort: Priority (High > Medium > Low), then by creation
-  const priorityOrder = { high: 0, medium: 1, low: 2 };
-  filteredTasks.sort((a, b) => {
-    if (a.priority !== b.priority) {
-      return priorityOrder[a.priority] - priorityOrder[b.priority];
-    }
-    return new Date(b.createdAt) - new Date(a.createdAt); // newest first
-  });
+  tasks.push(task)
+  saveTasks()
+  renderTasks()
+  updateStats()
 
-  if (filteredTasks.length === 0) {
-    const emptyItem = document.createElement("li");
-    emptyItem.style.textAlign = "center";
-    emptyItem.style.color = "#7f8c8d";
-    emptyItem.style.fontStyle = "italic";
-    emptyItem.textContent = "No tasks match your criteria.";
-    taskList.appendChild(emptyItem);
+  // Reset form
+  taskInput.value = ''
+  taskDue.value = ''
+}
+
+function toggleTask (taskId) {
+  const task = tasks.find(t => t.id === taskId)
+  if (task) {
+    task.completed = !task.completed
+    task.completedAt = task.completed ? new Date().toISOString() : null
+    saveTasks()
+    renderTasks()
+    updateStats()
+  }
+}
+
+function deleteTask (taskId) {
+  tasks = tasks.filter(t => t.id !== taskId)
+  saveTasks()
+  renderTasks()
+  updateStats()
+}
+
+function renderTasks () {
+  const taskList = document.getElementById('taskList')
+  taskList.innerHTML = ''
+
+  // Sort tasks: incomplete first, then by priority, then by due date
+  const sortedTasks = tasks.sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed - b.completed
+
+    const priorityOrder = { high: 3, medium: 2, low: 1 }
+    if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+      return priorityOrder[b.priority] - priorityOrder[a.priority]
+    }
+
+    if (a.due && b.due) return new Date(a.due) - new Date(b.due)
+    return 0
+  })
+
+  sortedTasks.forEach(task => {
+    const li = document.createElement('li')
+    li.className = `task-item ${task.completed ? 'completed' : ''} fade-in`
+
+    const dueDate = task.due ? new Date(task.due) : null
+    const isOverdue = dueDate && dueDate < new Date() && !task.completed
+    const daysUntilDue = dueDate
+      ? Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24))
+      : null
+
+    li.innerHTML = `
+                    <input type="checkbox" class="task-checkbox" ${
+                      task.completed ? 'checked' : ''
+                    } 
+                           onchange="toggleTask(${task.id})">
+                    <span class="task-text">${task.text}</span>
+                    <span class="task-subject subject-${task.subject}">${
+      task.subject
+    }</span>
+                    <span class="task-priority priority-${task.priority}">${
+      task.priority
+    }</span>
+                    ${
+                      task.due
+                        ? `<span class="task-due ${
+                            isOverdue ? 'text-danger' : ''
+                          }">${
+                            isOverdue
+                              ? 'Overdue!'
+                              : daysUntilDue === 0
+                              ? 'Due today'
+                              : daysUntilDue === 1
+                              ? 'Due tomorrow'
+                              : `${daysUntilDue} days`
+                          }</span>`
+                        : ''
+                    }
+                    <div class="task-actions">
+                        <button class="btn btn-danger btn-sm" onclick="deleteTask(${
+                          task.id
+                        })">Delete</button>
+                    </div>
+                `
+
+    taskList.appendChild(li)
+  })
+}
+
+
+
+
+// Timer functionality
+function startTimer () {
+  if (!isTimerRunning) {
+    isTimerRunning = true
+    timerInterval = setInterval(() => {
+      timerSeconds--
+      updateTimerDisplay()
+
+      if (timerSeconds <= 0) {
+        completeSession()
+      }
+    }, 1000)
+
+    document.getElementById('startBtn').textContent = 'Running...'
+    document.getElementById('startBtn').disabled = true
+  }
+}
+
+function pauseTimer () {
+  if (isTimerRunning) {
+    isTimerRunning = false
+    clearInterval(timerInterval)
+    document.getElementById('startBtn').textContent = 'Resume'
+    document.getElementById('startBtn').disabled = false
+  }
+}
+
+function resetTimer () {
+  isTimerRunning = false
+  clearInterval(timerInterval)
+  timerSeconds = settings.focusDuration * 60
+  updateTimerDisplay()
+  document.getElementById('startBtn').textContent = 'Start'
+  document.getElementById('startBtn').disabled = false
+}
+
+function updateTimerDisplay () {
+  const minutes = Math.floor(timerSeconds / 60)
+  const seconds = timerSeconds % 60
+  document.getElementById('timerDisplay').textContent = `${minutes
+    .toString()
+    .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+}
+
+function completeSession () {
+  resetTimer()
+
+  const session = {
+    id: Date.now(),
+    duration: settings.focusDuration,
+    completedAt: new Date().toISOString(),
+    linkedTask: document.getElementById('linkToTask').checked
+      ? tasks.find(t => !t.completed)?.id
+      : null
+  }
+
+  sessions.push(session)
+  saveSessions()
+  renderSessions()
+  updateStats()
+
+  // Show completion notification
+  alert(
+    `🎉 Great job! You completed a ${settings.focusDuration}-minute focus session!`
+  )
+}
+
+function renderSessions () {
+  const sessionList = document.getElementById('sessionList')
+  const todaySessions = sessions
+    .filter(s => {
+      const sessionDate = new Date(s.completedAt)
+      const today = new Date()
+      return sessionDate.toDateString() === today.toDateString()
+    })
+    .slice(-5) // Show last 5 sessions
+
+  sessionList.innerHTML = todaySessions
+    .map(session => {
+      const time = new Date(session.completedAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      const linkedTask = session.linkedTask
+        ? tasks.find(t => t.id === session.linkedTask)?.text || 'Deleted task'
+        : 'General study'
+
+      return `
+                    <div class="session-item">
+                        <span>${time} - ${session.duration}min</span>
+                        <span>${linkedTask}</span>
+                    </div>
+                `
+    })
+    .join('')
+}
+
+
+
+// Calendar functionality
+function renderCalendar () {
+  const calendar = document.getElementById('calendar')
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
+
+  document.getElementById('currentMonth').textContent = new Date(
+    year,
+    month
+  ).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const startDate = new Date(firstDay)
+  startDate.setDate(startDate.getDate() - firstDay.getDay())
+
+  calendar.innerHTML = ''
+
+  // Add headers
+  const headers = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  headers.forEach(header => {
+    const div = document.createElement('div')
+    div.className = 'calendar-header'
+    div.textContent = header
+    calendar.appendChild(div)
+  })
+
+  // Add days
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(startDate)
+    date.setDate(startDate.getDate() + i)
+
+    const div = document.createElement('div')
+    div.className = 'calendar-day'
+
+    const isCurrentMonth = date.getMonth() === month
+    const isToday = date.toDateString() === new Date().toDateString()
+    const dayTasks = tasks.filter(
+      task =>
+        task.due && new Date(task.due).toDateString() === date.toDateString()
+    )
+
+    if (!isCurrentMonth) div.style.opacity = '0.3'
+    if (isToday) div.classList.add('today')
+    if (dayTasks.length > 0) div.classList.add('has-tasks')
+
+    div.innerHTML = `
+                    <div class="day-number">${date.getDate()}</div>
+                    <div class="day-tasks">${dayTasks.length} task${
+      dayTasks.length !== 1 ? 's' : ''
+    }</div>
+                `
+
+    div.onclick = () => showDayDetails(date, dayTasks)
+    calendar.appendChild(div)
+  }
+}
+
+function changeMonth (direction) {
+  currentDate.setMonth(currentDate.getMonth() + direction)
+  renderCalendar()
+}
+
+function showDayDetails (date, dayTasks) {
+  const modal = document.getElementById('dayModal')
+  const title = document.getElementById('dayModalTitle')
+  const content = document.getElementById('dayModalContent')
+
+  title.textContent = `Tasks for ${date.toLocaleDateString()}`
+
+  if (dayTasks.length === 0) {
+    content.innerHTML = '<p>No tasks scheduled for this day.</p>'
   } else {
-    filteredTasks.forEach(task => {
-      const li = document.createElement("li");
-      if (task.completed) li.classList.add("completed");
+    content.innerHTML = dayTasks
+      .map(
+        task => `
+                    <div class="task-item ${task.completed ? 'completed' : ''}">
+                        <span class="task-text">${task.text}</span>
+                        <span class="task-subject subject-${task.subject}">${
+          task.subject
+        }</span>
+                        <span class="task-priority priority-${task.priority}">${
+          task.priority
+        }</span>
+                    </div>
+                `
+      )
+      .join('')
+  }
 
-      const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-      const isOverdue = dueDate && !task.completed && dueDate < now;
-      if (isOverdue) li.classList.add("overdue");
+  modal.classList.add('active')
+}
 
-      li.innerHTML = `
-        <div class="task-info">
-          <span class="text">${task.text}</span>
-          <div class="meta">
-            <span class="priority-badge pri-${task.priority}">${task.priority}</span>
-            <span>${task.category}</span>
-            ${dueDate ? `<span>📅 ${dueDate.toLocaleDateString()}</span>` : ""}
-          </div>
-        </div>
-        <div class="task-actions">
-          <button class="btn btn-complete" title="Mark Complete">
-            <i class="fas fa-check"></i>
-          </button>
-          <button class="btn btn-delete" title="Delete Task">
-            <i class="fas fa-trash"></i>
-          </button>
-        </div>
-      `;
 
-      li.querySelector(".btn-complete").onclick = (e) => {
-        e.stopPropagation();
-        toggleComplete(task.id);
-      };
 
-      li.querySelector(".btn-delete").onclick = (e) => {
-        e.stopPropagation();
-        openConfirmModal(task.id);
-      };
+// Statistics and charts
+function updateStats () {
+  const totalTasks = tasks.length
+  const completedTasks = tasks.filter(t => t.completed).length
+  const todaySessions = sessions.filter(s => {
+    const sessionDate = new Date(s.completedAt)
+    const today = new Date()
+    return sessionDate.toDateString() === today.toDateString()
+  })
+  const focusTime = todaySessions.reduce((total, s) => total + s.duration, 0)
 
-      taskList.appendChild(li);
-    });
+  // Calculate streak (simplified)
+  const streak = calculateStreak()
+
+  document.getElementById('totalTasks').textContent = totalTasks
+  document.getElementById('completedTasks').textContent = completedTasks
+  document.getElementById('focusTime').textContent = `${Math.floor(
+    focusTime / 60
+  )}h ${focusTime % 60}m`
+  document.getElementById('streakDays').textContent = streak
+
+  // Update subject stats
+  updateSubjectStats()
+}
+
+function calculateStreak () {
+  // Simplified streak calculation - days with completed tasks
+  const today = new Date()
+  let streak = 0
+
+  for (let i = 0; i < 30; i++) {
+    const checkDate = new Date(today)
+    checkDate.setDate(today.getDate() - i)
+
+    const hasActivity =
+      tasks.some(
+        task =>
+          task.completed &&
+          task.completedAt &&
+          new Date(task.completedAt).toDateString() === checkDate.toDateString()
+      ) ||
+      sessions.some(
+        session =>
+          new Date(session.completedAt).toDateString() ===
+          checkDate.toDateString()
+      )
+
+    if (hasActivity) {
+      streak++
+    } else if (i > 0) {
+      break
+    }
+  }
+
+  return streak
+}
+
+function updateSubjectStats () {
+  const subjectStats = document.getElementById('subjectStats')
+  const subjects = ['math', 'science', 'english', 'history']
+
+  subjectStats.innerHTML = subjects
+    .map(subject => {
+      const subjectTasks = tasks.filter(t => t.subject === subject)
+      const completed = subjectTasks.filter(t => t.completed).length
+      const total = subjectTasks.length
+      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
+
+      return `
+                    <div style="margin-bottom: 1rem;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span class="task-subject subject-${subject}">${
+        subject.charAt(0).toUpperCase() + subject.slice(1)
+      }</span>
+                            <span>${completed}/${total} (${percentage}%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                `
+    })
+    .join('')
+}
+
+function renderCharts () {
+  // Productivity chart (last 7 days)
+  const productivityCtx = document.getElementById('productivityChart')
+  if (productivityCtx) {
+    const last7Days = []
+    const focusData = []
+    const taskData = []
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date()
+      date.setDate(date.getDate() - i)
+      last7Days.push(date.toLocaleDateString('en-US', { weekday: 'short' }))
+
+      const dayFocus = sessions
+        .filter(
+          s => new Date(s.completedAt).toDateString() === date.toDateString()
+        )
+        .reduce((total, s) => total + s.duration, 0)
+      focusData.push(dayFocus)
+
+      const dayTasks = tasks.filter(
+        t =>
+          t.completed &&
+          t.completedAt &&
+          new Date(t.completedAt).toDateString() === date.toDateString()
+      ).length
+      taskData.push(dayTasks)
+    }
+
+    new Chart(productivityCtx, {
+      type: 'line',
+      data: {
+        labels: last7Days,
+        datasets: [
+          {
+            label: 'Focus Time (minutes)',
+            data: focusData,
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            tension: 0.4
+          },
+          {
+            label: 'Tasks Completed',
+            data: taskData,
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            tension: 0.4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'top'
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    })
+  }
+
+  // Subject distribution chart
+  const subjectCtx = document.getElementById('subjectChart')
+  if (subjectCtx) {
+    const subjects = ['math', 'science', 'english', 'history']
+    const subjectData = subjects.map(
+      subject => tasks.filter(t => t.subject === subject && t.completed).length
+    )
+
+    new Chart(subjectCtx, {
+      type: 'doughnut',
+      data: {
+        labels: subjects.map(s => s.charAt(0).toUpperCase() + s.slice(1)),
+        datasets: [
+          {
+            data: subjectData,
+            backgroundColor: ['#7c3aed', '#16a34a', '#d97706', '#dc2626']
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'bottom'
+          }
+        }
+      }
+    })
   }
 }
 
-// Toggle Complete
-function toggleComplete(id) {
-  tasks = tasks.map(t =>
-    t.id === id ? { ...t, completed: !t.completed } : t
-  );
-  saveTasks();
-  renderTasks();
-  updateProgress();
+
+
+// Templates
+function showTemplates () {
+  document.getElementById('templateModal').classList.add('active')
 }
 
-// Open Confirm Modal
-function openConfirmModal(id) {
-  const task = tasks.find(t => t.id === id);
-  modalMessage.textContent = `Delete "${task?.text || 'this task'}"?`;
-  taskToDelete = id;
-  confirmModal.classList.add("active");
+function loadTemplate (templateType) {
+  const templates = {
+    exam: [
+      { text: 'Review chapter notes', subject: 'math', priority: 'high' },
+      { text: 'Complete practice problems', subject: 'math', priority: 'high' },
+      { text: 'Create study guide', subject: 'math', priority: 'medium' },
+      { text: 'Schedule study group', subject: 'math', priority: 'low' }
+    ],
+    project: [
+      { text: 'Research topic', subject: 'english', priority: 'high' },
+      { text: 'Create outline', subject: 'english', priority: 'high' },
+      { text: 'Write first draft', subject: 'english', priority: 'medium' },
+      { text: 'Review and edit', subject: 'english', priority: 'medium' },
+      { text: 'Final submission', subject: 'english', priority: 'high' }
+    ],
+    daily: [
+      {
+        text: "Review yesterday's notes",
+        subject: 'science',
+        priority: 'medium'
+      },
+      {
+        text: 'Complete homework assignments',
+        subject: 'math',
+        priority: 'high'
+      },
+      {
+        text: 'Read assigned chapters',
+        subject: 'history',
+        priority: 'medium'
+      },
+      { text: 'Practice vocabulary', subject: 'english', priority: 'low' }
+    ]
+  }
+
+  const templateTasks = templates[templateType] || []
+  templateTasks.forEach(template => {
+    const task = {
+      id: Date.now() + Math.random(),
+      text: template.text,
+      subject: template.subject,
+      priority: template.priority,
+      due: '',
+      completed: false,
+      createdAt: new Date().toISOString()
+    }
+    tasks.push(task)
+  })
+
+  saveTasks()
+  renderTasks()
+  updateStats()
+  closeModal('templateModal')
 }
 
-// Close Modal
-function closeConfirmModal() {
-  confirmModal.classList.remove("active");
-  taskToDelete = null;
+
+
+// Export functionality
+function exportReport () {
+  const today = new Date()
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+  const weeklyTasks = tasks.filter(t => new Date(t.createdAt) >= weekAgo)
+  const weeklySessions = sessions.filter(
+    s => new Date(s.completedAt) >= weekAgo
+  )
+
+  const report = `
+StudyHub Pro - Weekly Report
+Generated: ${today.toLocaleDateString()}
+
+TASK SUMMARY
+============
+Total tasks created: ${weeklyTasks.length}
+Tasks completed: ${weeklyTasks.filter(t => t.completed).length}
+Completion rate: ${
+    weeklyTasks.length > 0
+      ? Math.round(
+          (weeklyTasks.filter(t => t.completed).length / weeklyTasks.length) *
+            100
+        )
+      : 0
+  }%
+
+FOCUS SESSIONS
+==============
+Total sessions: ${weeklySessions.length}
+Total focus time: ${weeklySessions.reduce(
+    (total, s) => total + s.duration,
+    0
+  )} minutes
+Average session: ${
+    weeklySessions.length > 0
+      ? Math.round(
+          weeklySessions.reduce((total, s) => total + s.duration, 0) /
+            weeklySessions.length
+        )
+      : 0
+  } minutes
+
+SUBJECT BREAKDOWN
+=================
+${['math', 'science', 'english', 'history']
+  .map(subject => {
+    const subjectTasks = weeklyTasks.filter(t => t.subject === subject)
+    const completed = subjectTasks.filter(t => t.completed).length
+    return `${
+      subject.charAt(0).toUpperCase() + subject.slice(1)
+    }: ${completed}/${subjectTasks.length} completed`
+  })
+  .join('\n')}
+
+COMPLETED TASKS
+===============
+${weeklyTasks
+  .filter(t => t.completed)
+  .map(t => `✓ ${t.text} (${t.subject}, ${t.priority} priority)`)
+  .join('\n')}
+
+PENDING TASKS
+=============
+${weeklyTasks
+  .filter(t => !t.completed)
+  .map(
+    t =>
+      `○ ${t.text} (${t.subject}, ${t.priority} priority)${
+        t.due ? ` - Due: ${t.due}` : ''
+      }`
+  )
+  .join('\n')}
+            `.trim()
+
+  const blob = new Blob([report], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `StudyHub-Report-${today.toISOString().split('T')[0]}.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
-// Confirm Delete
-function confirmDelete() {
-  if (taskToDelete === null) return;
 
-  tasks = tasks.filter(t => t.id !== taskToDelete);
-  saveTasks();
-  renderTasks();
-  updateProgress();
-  closeConfirmModal();
+
+// Settings
+function updateFocusDuration () {
+  const duration = parseInt(document.getElementById('focusDuration').value)
+  settings.focusDuration = duration
+  saveSettings()
+  resetTimer()
 }
 
-// Update Progress
-function updateProgress() {
-  const total = tasks.length;
-  const completed = tasks.filter(t => t.completed).length;
-  const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
-
-  progressFill.style.width = `${percent}%`;
-  progressPercentage.textContent = `${percent}%`;
-
-  if (total === 0) {
-    motivationMessage.textContent = "Start adding tasks!";
-  } else if (percent === 100) {
-    motivationMessage.textContent = "🎉 All done! Amazing!";
-  } else if (percent >= 75) {
-    motivationMessage.textContent = "🔥 Almost there! Keep going!";
-  } else if (percent >= 50) {
-    motivationMessage.textContent = "💪 Halfway! You've got this!";
-  } else if (percent >= 25) {
-    motivationMessage.textContent = "🚀 Getting started! Push forward!";
-  } else {
-    motivationMessage.textContent = "🌱 Just beginning? Every step counts!";
+function clearAllData () {
+  if (
+    confirm('Are you sure you want to clear all data? This cannot be undone.')
+  ) {
+    tasks = []
+    sessions = []
+    localStorage.removeItem('studyhub_tasks')
+    localStorage.removeItem('studyhub_sessions')
+    renderTasks()
+    renderSessions()
+    updateStats()
+    renderCalendar()
+    alert('All data has been cleared.')
   }
 }
 
-// Event Listeners
-addButton.addEventListener("click", addTask);
-taskInput.addEventListener("keypress", e => e.key === "Enter" && addTask());
 
-// Search
-searchInput.addEventListener("input", renderTasks);
 
-// Filters
-filters.forEach(btn => {
-  btn.addEventListener("click", () => {
-    filters.forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    currentFilter = btn.getAttribute("data-filter");
-    renderTasks();
-  });
-});
-
-// Modal
-cancelBtn.addEventListener("click", closeConfirmModal);
-confirmBtn.addEventListener("click", confirmDelete);
-confirmModal.addEventListener("click", e => e.target === confirmModal && closeConfirmModal());
-document.addEventListener("keydown", e => e.key === "Escape" && closeConfirmModal());
-
-// Initial Load
-loadTasks();
-
-// confetti function when all tasks are completed
-if (percent === 100 && tasks.length > 0) {
-  motivationMessage.textContent = "🎉 All done! Amazing!";
-
-  // Epic confetti burst
-  confetti({
-    particleCount: 200,
-    spread: 180,
-    origin: { y: 0.6 },
-    colors: ['#3498db', '#2ecc71', '#f1c40f', '#e74c3c', '#9b59b6']
-  });
-
-  // Secondary burst
-  setTimeout(() => {
-    confetti({
-      particleCount: 100,
-      angle: 60,
-      spread: 55,
-      origin: { x: 0 },
-      colors: ['#2ecc71', '#f1c40f']
-    });
-    confetti({
-      particleCount: 100,
-      angle: 120,
-      spread: 55,
-      origin: { x: 1 },
-      colors: ['#e74c3c', '#3498db']
-    });
-  }, 500);
+// Modal management
+function closeModal (modalId) {
+  document.getElementById(modalId).classList.remove('active')
 }
 
 
-// export tasks to PDF
-document.getElementById("exportPdfBtn").addEventListener("click", () => {
-  // ✅ Correct way to initialize jsPDF
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
 
-  // Your existing code below...
-  doc.setFontSize(20);
-  doc.setTextColor(40, 40, 40);
-  doc.text("🎯 My To-Do List", 14, 20);
+// Close modals when clicking outside
+document.addEventListener('click', function (event) {
+  if (event.target.classList.contains('modal')) {
+    event.target.classList.remove('active')
+  }
+})
 
-  doc.setFontSize(12);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
-  doc.line(14, 34, 190, 34);
 
-  const completed = tasks.filter(t => t.completed).length;
-  const overdue = tasks.filter(t => !t.completed && t.dueDate && new Date(t.dueDate) < new Date()).length;
 
-  doc.setFontSize(14);
-  doc.setTextColor(0, 0, 0);
-  doc.text(`📊 Summary`, 14, 44);
-  doc.setFontSize(12);
-  doc.setTextColor(60, 60, 60);
-  doc.text(`Total Tasks: ${tasks.length} | Completed: ${completed} | Overdue: ${overdue}`, 14, 52);
-
-  let y = 62;
-  doc.setFontSize(12);
-  doc.setTextColor(0, 0, 0);
-  doc.text("📋 Task List", 14, y);
-  y += 10;
-
-  tasks.forEach(task => {
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
-    }
-
-    const status = task.completed ? "✅" : "📄";
-    const due = task.dueDate ? ` | Due: ${new Date(task.dueDate).toLocaleDateString()}` : "";
-    const line = `${status} ${task.text} [${task.priority.toUpperCase()}] [${task.category}]${due}`;
-
-    // Set color: gray for completed, red for overdue, black otherwise
-    if (task.completed) {
-      doc.setTextColor(100, 100, 100);
-    } else if (task.dueDate && new Date(task.dueDate) < new Date()) {
-      doc.setTextColor(231, 76, 60); // Red
-    } else {
-      doc.setTextColor(0, 0, 0); // Black
-    }
-
-    doc.text(line, 14, y);
-    y += 8;
-  });
-
-  // Footer
-  doc.setFontSize(10);
-  doc.setTextColor(150, 150, 150);
-  doc.text("Generated with ❤️ by your To-Do App", 14, 290);
-
-  // Save PDF
-  doc.save(`tasks-${new Date().toISOString().split("T")[0]}.pdf`);
-});
-// reorder tasks using drag and drop
-
-// Make list sortable
-if (taskList.children.length > 1) {
-  Sortable.create(taskList, {
-    animation: 150,
-    onEnd: function() {
-      // Reorder tasks array to match DOM
-      const orderedIds = Array.from(taskList.children)
-        .filter(el => !el.classList.contains("empty"))
-        .map(el => {
-          const idText = el.querySelector(".btn-complete")?.getAttribute("data-id") || "";
-          return parseInt(idText);
-        })
-        .filter(id => !isNaN(id));
-
-      tasks.sort((a, b) => {
-        return orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id);
-      });
-
-      saveTasks(); // Save new order
-    }
-  });
+// Data persistence
+function saveTasks () {
+  localStorage.setItem('studyhub_tasks', JSON.stringify(tasks))
 }
 
+function saveSessions () {
+  localStorage.setItem('studyhub_sessions', JSON.stringify(sessions))
+}
+
+function saveSettings () {
+  localStorage.setItem('studyhub_settings', JSON.stringify(settings))
+}
+
+
+
+// Initialize focus duration setting
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('focusDuration').value = settings.focusDuration
+})
